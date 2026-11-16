@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Minimal squircle tile with a H accent, HyperOS-like flat geometry. -->
+    <path
+        android:fillColor="#FF3D7EFF"
+        android:pathData="M54,30 C37,30 30,37 30,54 C30,71 37,78 54,78 C71,78 78,71 78,54 C78,37 71,30 54,30 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M45,42 h5 v9 h8 v-9 h5 v24 h-5 v-10 h-8 v10 h-5 z" />
+</vector>
