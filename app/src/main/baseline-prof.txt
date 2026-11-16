@@ -1,0 +1,7 @@
+HSPLcom/gafure/hyperlauncher/MainActivity;-><init>()V
+HSPLcom/gafure/hyperlauncher/MainActivity;->onCreate(Landroid/os/Bundle;)V
+HSPLcom/gafure/hyperlauncher/HyperLauncherApp;-><init>()V
+HSPLcom/gafure/hyperlauncher/HyperLauncherApp;->onCreate()V
+HSPLcom/gafure/hyperlauncher/data/AppRepository;-><init>(Landroid/content/Context;)V
+HSPLcom/gafure/hyperlauncher/data/AppRepository;->start()V
+HSPLcom/gafure/hyperlauncher/data/HomeLayoutStore;-><init>(Landroid/content/Context;)V

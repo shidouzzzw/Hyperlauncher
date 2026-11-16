@@ -3,7 +3,7 @@ package com.gafure.hyperlauncher.ui.components
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -16,8 +16,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -29,9 +32,30 @@ private val ClockShadow = Shadow(
     blurRadius = 14f,
 )
 
+/** Hoisted styles: no TextStyle allocation and no theme lookup per tick. */
+private val TimeStyle = TextStyle(
+    fontFamily = FontFamily.SansSerif,
+    fontWeight = FontWeight.Thin,
+    fontSize = 84.sp,
+    lineHeight = 88.sp,
+    letterSpacing = (-3).sp,
+    color = Color.White,
+    shadow = ClockShadow,
+)
+
+private val DateStyle = TextStyle(
+    fontFamily = FontFamily.SansSerif,
+    fontWeight = FontWeight.Medium,
+    fontSize = 15.sp,
+    lineHeight = 20.sp,
+    letterSpacing = 0.8.sp,
+    color = Color.White.copy(alpha = 0.82f),
+    shadow = ClockShadow,
+)
+
 /**
- * Left-aligned clock and date. The ticker sleeps until the next minute boundary instead of
- * waking every second, so it never re-renders more than once a minute.
+ * Left-aligned clock and date. The ticker sleeps until the next minute boundary, so this
+ * subtree recomposes at most once a minute.
  */
 @Composable
 fun ClockSection(modifier: Modifier = Modifier) {
@@ -56,21 +80,8 @@ fun ClockSection(modifier: Modifier = Modifier) {
         modifier = modifier,
         horizontalAlignment = Alignment.Start,
     ) {
-        Text(
-            text = timeText,
-            style = MaterialTheme.typography.displayLarge.copy(
-                color = Color.White,
-                shadow = ClockShadow,
-            ),
-        )
+        Text(text = timeText, style = TimeStyle)
         Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = dateText,
-            style = MaterialTheme.typography.titleMedium.copy(
-                color = Color.White.copy(alpha = 0.82f),
-                fontWeight = FontWeight.Medium,
-                shadow = ClockShadow,
-            ),
-        )
+        Text(text = dateText, style = DateStyle)
     }
 }

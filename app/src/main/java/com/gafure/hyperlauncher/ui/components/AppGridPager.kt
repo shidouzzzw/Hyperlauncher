@@ -17,34 +17,45 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.gafure.hyperlauncher.model.AppInfo
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 
 private const val GRID_COLUMNS = 4
+private const val HOME_CELL_CONTENT_TYPE = "home-app"
 private val CELL_HEIGHT = 96.dp
 private val ROW_SPACING = 10.dp
 
 /**
- * Swipeable home pages. Each page is a four-column [LazyVerticalGrid] holding exactly one
- * screen of apps, so vertical scrolling never fights the horizontal [HorizontalPager].
+ * Swipeable home pages. Each page is a four-column [LazyVerticalGrid] holding one screen of
+ * user-selected apps; only the neighbouring page is composed (`beyondViewportPageCount = 1`).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AppGridPager(
-    apps: List<AppInfo>,
+    apps: ImmutableList<AppInfo>,
     onAppClick: (AppInfo) -> Unit,
+    onAppRemove: (AppInfo) -> Unit,
+    onAppInfo: (AppInfo) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val rows = (((maxHeight - 8.dp) / (CELL_HEIGHT + ROW_SPACING)).toInt()).coerceAtLeast(1)
         val itemsPerPage = rows * GRID_COLUMNS
-        val pages = remember(apps, itemsPerPage) { apps.chunked(itemsPerPage) }
+        val pages = remember(apps, itemsPerPage) {
+            apps.chunked(itemsPerPage).map { page -> page.toImmutableList() }
+        }
         val pagerState = rememberPagerState(pageCount = { pages.size })
 
         HorizontalPager(
             state = pagerState,
             pageSpacing = 16.dp,
+            beyondBoundsPageCount = 1,
             verticalAlignment = Alignment.Top,
+            key = { pageIndex -> pageIndex },
             modifier = Modifier.fillMaxSize(),
         ) { pageIndex ->
+            val pageApps = pages.getOrNull(pageIndex) ?: persistentListOf()
             LazyVerticalGrid(
                 columns = GridCells.Fixed(GRID_COLUMNS),
                 modifier = Modifier.fillMaxSize(),
@@ -53,11 +64,17 @@ fun AppGridPager(
                 verticalArrangement = Arrangement.spacedBy(ROW_SPACING),
                 userScrollEnabled = false,
             ) {
-                items(items = pages[pageIndex], key = { app -> app.key }) { app ->
+                items(
+                    items = pageApps,
+                    key = { app -> app.key },
+                    contentType = { HOME_CELL_CONTENT_TYPE },
+                ) { app ->
                     AppGridCell(
                         app = app,
+                        onOpen = { onAppClick(app) },
+                        onRemoveFromHome = { onAppRemove(app) },
+                        onAppInfo = { onAppInfo(app) },
                         modifier = Modifier.height(CELL_HEIGHT),
-                        onClick = { onAppClick(app) },
                     )
                 }
             }

@@ -12,7 +12,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -22,22 +21,24 @@ import com.gafure.hyperlauncher.model.AppInfo
 import com.gafure.hyperlauncher.ui.shape.Squircle
 
 /**
- * A squircle-masked app icon that springs down to 86% while pressed and back on release.
- * Press state is local, so a tap never recomposes its neighbours.
+ * A squircle-masked app icon that springs down while pressed. The animated scale is read only
+ * inside [graphicsLayer], so press feedback never triggers recomposition; the mask and the
+ * scale share a single render layer.
  */
 @Composable
 fun AppIcon(
     app: AppInfo,
-    contentDescription: String? = app.label,
     size: Dp = 54.dp,
+    contentDescription: String? = app.label,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
 ) {
     var pressed by remember(app.key) { mutableStateOf(false) }
-    val scale by animateFloatAsState(
+    val scale = animateFloatAsState(
         targetValue = if (pressed) 0.86f else 1f,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
+            dampingRatio = Spring.DampingRatioLowBouncy,
             stiffness = Spring.StiffnessMediumLow,
         ),
         label = "appIconScale",
@@ -50,16 +51,22 @@ fun AppIcon(
         modifier = modifier
             .size(size)
             .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
+                val currentScale = scale.value
+                scaleX = currentScale
+                scaleY = currentScale
+                shape = Squircle
+                clip = true
             }
-            .clip(Squircle)
             .pointerInput(app.key) {
                 detectTapGestures(
                     onPress = {
                         pressed = true
                         tryAwaitRelease()
                         pressed = false
+                    },
+                    onLongPress = {
+                        pressed = false
+                        onLongClick?.invoke()
                     },
                     onTap = { onClick() },
                 )

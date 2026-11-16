@@ -1,7 +1,10 @@
 package com.gafure.hyperlauncher.ui
 
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,84 +16,143 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
-import com.gafure.hyperlauncher.data.AppRepository
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gafure.hyperlauncher.model.AppInfo
 import com.gafure.hyperlauncher.ui.components.AppDock
+import com.gafure.hyperlauncher.ui.components.AppDrawer
 import com.gafure.hyperlauncher.ui.components.AppGridPager
 import com.gafure.hyperlauncher.ui.components.ClockSection
 import com.gafure.hyperlauncher.ui.theme.ScrimDark
 import com.gafure.hyperlauncher.ui.theme.ScrimLight
 
+private val DrawerOpenThreshold = 72.dp
+private const val HomeBlurRadius = 26f
+
 /**
- * The whole home screen: wallpaper scrim, clock, paged app grid and the fixed dock.
- * The activity window is transparent, so the system wallpaper shows through.
+ * Home screen: wallpaper scrim, clock, paged grid of the user's chosen apps and the fixed dock.
+ * Swiping up from empty space opens the [AppDrawer], which blurs this content via RenderEffect.
  */
 @Composable
-fun HyperHomeScreen(repository: AppRepository) {
-    val apps by produceState<List<AppInfo>?>(initialValue = null) {
-        value = repository.loadApps()
-    }
-    val dockApps = remember(repository, apps) {
-        apps?.let { repository.pickDockApps(it) }.orEmpty()
+fun HyperHomeScreen(viewModel: HomeViewModel = viewModel()) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var drawerOpen by rememberSaveable { mutableStateOf(false) }
+    val homeBlur = remember { mutableFloatStateOf(0f) }
+
+    val onOpenApp = remember(viewModel) { viewModel::openApp }
+    val onRemoveFromHome = remember(viewModel) { viewModel::removeFromHome }
+    val onAppInfo = remember(viewModel) { viewModel::openAppInfo }
+    val onAddToHome = remember(viewModel) { viewModel::addToHome }
+
+    // Animate the blur without recomposition: the value is only read in graphicsLayer.
+    LaunchedEffect(drawerOpen) {
+        animate(
+            initialValue = homeBlur.floatValue,
+            targetValue = if (drawerOpen) HomeBlurRadius else 0f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMediumLow,
+            ),
+        ) { value, _ -> homeBlur.floatValue = value }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
         WallpaperScrim()
 
-        val loadedApps = apps
-        if (loadedApps != null) {
-            Column(
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    val radius = homeBlur.floatValue
+                    renderEffect = if (radius > 0.5f) {
+                        BlurEffect(radiusX = radius, radiusY = radius, edgeTreatment = TileMode.Clamp)
+                    } else {
+                        null
+                    }
+                }
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .pointerInput(Unit) {
+                    val openThreshold = DrawerOpenThreshold.toPx()
+                    var dragged = 0f
+                    detectVerticalDragGestures(
+                        onDragEnd = {
+                            if (dragged <= -openThreshold) drawerOpen = true
+                            dragged = 0f
+                        },
+                        onDragCancel = { dragged = 0f },
+                    ) { change, dragAmount ->
+                        dragged += dragAmount
+                        change.consume()
+                    }
+                },
+        ) {
+            ClockSection(
+                modifier = Modifier.padding(start = 28.dp, end = 28.dp, top = 16.dp),
+            )
+            Spacer(modifier = Modifier.height(18.dp))
+            AppGridPager(
+                apps = uiState.homeApps,
+                onAppClick = onOpenApp,
+                onAppRemove = onRemoveFromHome,
+                onAppInfo = onAppInfo,
                 modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .navigationBarsPadding(),
-            ) {
-                ClockSection(
-                    modifier = Modifier.padding(start = 28.dp, end = 28.dp, top = 16.dp),
-                )
-                Spacer(modifier = Modifier.height(18.dp))
-                AppGridPager(
-                    apps = loadedApps,
-                    onAppClick = repository::launch,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                AppDock(
-                    apps = dockApps,
-                    onAppClick = repository::launch,
-                    modifier = Modifier.padding(bottom = 12.dp),
-                )
-            }
+                    .weight(1f)
+                    .fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            AppDock(
+                apps = uiState.dockApps,
+                onAppClick = onOpenApp,
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
+        }
+
+        if (drawerOpen) {
+            AppDrawer(
+                apps = uiState.drawerApps,
+                onClose = { drawerOpen = false },
+                onOpenApp = onOpenApp,
+                onAddToHome = onAddToHome,
+                onAppInfo = onAppInfo,
+            )
         }
     }
 }
 
-/** Light-dark aware darkening gradient over the wallpaper, denser behind the clock. */
+/** Dark/light aware darkening gradient over the wallpaper, denser behind the clock. */
 @Composable
 private fun WallpaperScrim(modifier: Modifier = Modifier) {
-    val target = if (isSystemInDarkTheme()) ScrimDark else ScrimLight
-    val scrim by animateColorAsState(targetValue = target, label = "wallpaperScrim")
+    val isDark = isSystemInDarkTheme()
+    val scrim = remember(isDark) { if (isDark) ScrimDark else ScrimLight }
+    val brush = remember(scrim) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color.Black.copy(alpha = scrim.alpha),
+                Color.Black.copy(alpha = scrim.alpha * 0.62f),
+                Color.Black.copy(alpha = scrim.alpha * 0.85f),
+            ),
+        )
+    }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color.Black.copy(alpha = scrim.alpha),
-                        Color.Black.copy(alpha = scrim.alpha * 0.62f),
-                        Color.Black.copy(alpha = scrim.alpha * 0.85f),
-                    ),
-                ),
-            ),
+            .background(brush),
     )
 }
