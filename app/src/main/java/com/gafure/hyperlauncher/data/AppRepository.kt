@@ -10,13 +10,15 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.core.content.ContextCompat
 import com.gafure.hyperlauncher.model.AppInfo
-import java.text.Collator
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,7 +42,8 @@ class AppRepository(private val context: Context) {
     val apps: StateFlow<ImmutableList<AppInfo>> = _apps.asStateFlow()
 
     private var receiverRegistered = false
-    private var refreshInFlight = false
+    private val refreshInFlight = AtomicBoolean(false)
+    private var refreshJob: Job? = null
 
     private val packageReceiver = object : BroadcastReceiver() {
         override fun onReceive(receiverContext: Context?, intent: Intent?) {
@@ -59,18 +62,27 @@ class AppRepository(private val context: Context) {
             )
             receiverRegistered = true
         }
-        refresh()
+        scope.launch { refreshNow() }
     }
 
+    /**
+     * Debounced refresh for package broadcasts: installs fire several broadcasts in a
+     * burst, and each full query re-touches PackageManager, so coalesce them.
+     */
     fun refresh() {
-        if (refreshInFlight) return
-        refreshInFlight = true
-        scope.launch {
-            try {
-                _apps.value = queryApps()
-            } finally {
-                refreshInFlight = false
-            }
+        refreshJob?.cancel()
+        refreshJob = scope.launch {
+            delay(REFRESH_DEBOUNCE_MS)
+            refreshNow()
+        }
+    }
+
+    private suspend fun refreshNow() {
+        if (!refreshInFlight.compareAndSet(false, true)) return
+        try {
+            _apps.value = queryApps()
+        } finally {
+            refreshInFlight.set(false)
         }
     }
 
@@ -83,43 +95,43 @@ class AppRepository(private val context: Context) {
             PackageManager.MATCH_ALL,
         )
         val ownPackage = context.packageName
-        val collator = Collator.getInstance()
 
-        return resolved.asSequence()
+        // Shape the list with pure, unit-tested logic; only then touch the icon cache.
+        val entries = resolved.asSequence()
             .mapNotNull { info ->
                 val activityInfo = info.activityInfo ?: return@mapNotNull null
                 val packageName = activityInfo.packageName ?: return@mapNotNull null
-                if (packageName == ownPackage) return@mapNotNull null
                 val label = info.loadLabel(packageManager)?.toString()?.trim().orEmpty()
-                AppInfo(
+                AppEntry(
                     label = label.ifEmpty { packageName },
                     packageName = packageName,
                     activityName = activityInfo.name,
-                    icon = iconCache.getOrLoad(packageName),
                 )
             }
-            .distinctBy { it.key }
-            .sortedWith { first, second -> collator.compare(first.label, second.label) }
-            .toImmutableList()
+            .toList()
+            .withoutPackage(ownPackage)
+            .distinctByKey()
+            .sortedByLabel()
+
+        return entries.map { entry ->
+            AppInfo(
+                label = entry.label,
+                packageName = entry.packageName,
+                activityName = entry.activityName,
+                icon = iconCache.getOrLoad(entry.packageName),
+            )
+        }.toImmutableList()
     }
 
     /** Picks up to [slots] dock apps: phone, messages, browser and camera when installed. */
     fun pickDockApps(apps: List<AppInfo>, slots: Int = DOCK_SLOTS): ImmutableList<AppInfo> {
         if (apps.isEmpty() || slots <= 0) return persistentListOf()
-        val picked = LinkedHashMap<String, AppInfo>()
-        for (hint in DOCK_HINTS) {
-            if (picked.size >= slots) break
-            val match = apps.firstOrNull { app ->
-                val pkg = app.packageName.lowercase()
-                pkg !in picked && hint.any { pkg.contains(it) }
-            }
-            if (match != null) picked[match.key] = match
-        }
-        for (app in apps) {
-            if (picked.size >= slots) break
-            picked[app.key] = app
-        }
-        return picked.values.toList().toImmutableList()
+        val byKey = apps.associateBy { it.key }
+        return DockPicker.pick(
+            apps = apps.map { AppEntry(it.label, it.packageName, it.activityName) },
+            slots = slots,
+            hintGroups = DOCK_HINTS,
+        ).mapNotNull { byKey[it.key] }.toImmutableList()
     }
 
     fun launch(app: AppInfo) {
@@ -148,6 +160,7 @@ class AppRepository(private val context: Context) {
     }
 
     private companion object {
+        const val REFRESH_DEBOUNCE_MS = 600L
         const val DOCK_SLOTS = 4
         val DOCK_HINTS: List<List<String>> = listOf(
             listOf("dialer", "phone"),

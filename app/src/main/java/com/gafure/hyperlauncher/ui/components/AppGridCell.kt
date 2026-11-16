@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gafure.hyperlauncher.model.AppInfo
@@ -45,7 +46,7 @@ private val LabelStyle = TextStyle(
     shadow = LabelShadow,
 )
 
-/** One home-grid cell: squircle icon, single-line label and the long-press menu. */
+/** One home-grid cell: squircle icon, optional label and the long-press menu. */
 @Composable
 fun AppGridCell(
     app: AppInfo,
@@ -53,6 +54,9 @@ fun AppGridCell(
     onRemoveFromHome: () -> Unit,
     onAppInfo: () -> Unit,
     modifier: Modifier = Modifier,
+    iconSize: Dp = 54.dp,
+    showLabel: Boolean = true,
+    animationScale: Float = 1f,
 ) {
     var menuOpen by remember(app.key) { mutableStateOf(false) }
     val currentOnRemove by rememberUpdatedState(onRemoveFromHome)
@@ -72,18 +76,22 @@ fun AppGridCell(
         ) {
             AppIcon(
                 app = app,
+                size = iconSize,
+                animationScale = animationScale,
                 onClick = onOpen,
                 onLongClick = { menuOpen = true },
             )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = app.label,
-                style = LabelStyle,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (showLabel) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = app.label,
+                    style = LabelStyle,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
 
         AppContextMenu(

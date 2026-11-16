@@ -6,6 +6,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import com.gafure.hyperlauncher.data.settings.ThemeMode
 
 private val DarkColors = darkColorScheme(
     primary = HyperBlue,
@@ -33,9 +34,17 @@ private val LightColors = lightColorScheme(
     onSurfaceVariant = Color(0xFF4A4F59),
 )
 
+/** Resolves the user's [ThemeMode] against the device setting. */
+@Composable
+fun ThemeMode.isDarkTheme(): Boolean = when (this) {
+    ThemeMode.System -> isSystemInDarkTheme()
+    ThemeMode.Light -> false
+    ThemeMode.Dark -> true
+}
+
 /**
- * Dark and light schemes follow the system setting. The launcher does not expose its own
- * theme switch; [isSystemInDarkTheme] drives every brightness-dependent surface.
+ * Dark and light schemes follow the system setting unless the user picked an override in
+ * settings; every brightness-dependent surface reads this one flag.
  */
 @Composable
 fun HyperLauncherTheme(

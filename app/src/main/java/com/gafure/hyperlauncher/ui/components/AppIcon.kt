@@ -2,6 +2,7 @@ package com.gafure.hyperlauncher.ui.components
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -31,16 +32,25 @@ fun AppIcon(
     size: Dp = 54.dp,
     contentDescription: String? = app.label,
     modifier: Modifier = Modifier,
+    animationScale: Float = 1f,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
 ) {
     var pressed by remember(app.key) { mutableStateOf(false) }
+    // User "animation speed" setting: 0 disables the press spring entirely.
+    val animationSpec = remember(animationScale) {
+        if (animationScale <= 0f) {
+            snap()
+        } else {
+            spring<Float>(
+                dampingRatio = Spring.DampingRatioLowBouncy,
+                stiffness = Spring.StiffnessMediumLow * animationScale.coerceIn(0.2f, 2f),
+            )
+        }
+    }
     val scale = animateFloatAsState(
         targetValue = if (pressed) 0.86f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessMediumLow,
-        ),
+        animationSpec = animationSpec,
         label = "appIconScale",
     )
 

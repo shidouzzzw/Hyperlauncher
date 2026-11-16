@@ -18,13 +18,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gafure.hyperlauncher.model.AppInfo
@@ -108,7 +115,12 @@ fun AppDrawer(
     onOpenApp: (AppInfo) -> Unit,
     onAddToHome: (AppInfo) -> Unit,
     onAppInfo: (AppInfo) -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    drawerColumns: Int = 4,
+    iconSize: Dp = 50.dp,
+    showLabels: Boolean = true,
+    animationScale: Float = 1f,
 ) {
     val progress = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
@@ -183,11 +195,25 @@ fun AppDrawer(
                 },
         ) {
             Spacer(modifier = Modifier.height(16.dp))
-            DrawerSearchBar(query = query, onQueryChange = { query = it })
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                DrawerSearchBar(
+                    query = query,
+                    onQueryChange = { query = it },
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                IconButton(onClick = onOpenSettings) {
+                    Icon(
+                        imageVector = Icons.Filled.Settings,
+                        contentDescription = "Ayarlar",
+                        tint = Color.White.copy(alpha = 0.85f),
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(14.dp))
 
             LazyVerticalGrid(
-                columns = GridCells.Fixed(4),
+                columns = GridCells.Fixed(drawerColumns.coerceAtLeast(1)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
@@ -202,6 +228,9 @@ fun AppDrawer(
                 ) { app ->
                     DrawerAppCell(
                         app = app,
+                        iconSize = iconSize,
+                        showLabel = showLabels,
+                        animationScale = animationScale,
                         onOpenApp = onOpenApp,
                         onAddToHome = onAddToHome,
                         onAppInfo = onAppInfo,
@@ -216,6 +245,7 @@ fun AppDrawer(
 private fun DrawerSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     BasicTextField(
         value = query,
@@ -224,7 +254,7 @@ private fun DrawerSearchBar(
         textStyle = SearchTextStyle,
         cursorBrush = SolidColor(Color.White),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         decorationBox = { innerTextField ->
             Box(
                 modifier = Modifier
@@ -247,6 +277,9 @@ private fun DrawerSearchBar(
 @Composable
 private fun DrawerAppCell(
     app: AppInfo,
+    iconSize: Dp,
+    showLabel: Boolean,
+    animationScale: Float,
     onOpenApp: (AppInfo) -> Unit,
     onAddToHome: (AppInfo) -> Unit,
     onAppInfo: (AppInfo) -> Unit,
@@ -272,19 +305,22 @@ private fun DrawerAppCell(
         ) {
             AppIcon(
                 app = app,
-                size = 50.dp,
+                size = iconSize,
+                animationScale = animationScale,
                 onClick = { onOpenApp(app) },
                 onLongClick = { menuOpen = true },
             )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = app.label,
-                style = DrawerLabelStyle,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (showLabel) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = app.label,
+                    style = DrawerLabelStyle,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
 
         AppContextMenu(

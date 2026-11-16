@@ -12,19 +12,50 @@ android {
         applicationId = "com.gafure.hyperlauncher"
         minSdk = 31
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0-dev"
         vectorDrawables { useSupportLibrary = true }
     }
 
+    // Optional real release signing: supply a keystore path + credentials through the
+    // environment (CI secrets). Nothing secret is written into the repository. Without
+    // them the release build falls back to the debug key so the APK still installs for
+    // local verification — it is then NOT suitable for distribution.
+    val releaseKeystorePath = System.getenv("RELEASE_KEYSTORE_FILE")
+    if (releaseKeystorePath != null) {
+        signingConfigs.create("release") {
+            storeFile = file(releaseKeystorePath)
+            storePassword = System.getenv("RELEASE_STORE_PASSWORD")
+            keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+            keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
+        debug {
+            // Debug key is fine for local iteration.
+            signingConfig = signingConfigs.getByName("debug")
+        }
+        // Release-like build that installs side-by-side with debug (different
+        // applicationId) so release-only behaviour can be verified on device.
+        // It is still signed with the debug key; official releases need a real
+        // keystore configured in CI secrets (see README).
+        create("staging") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".staging"
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
+            signingConfig = signingConfigs.findByName("release")
+                ?: signingConfigs.getByName("debug")
             // R8 on: smaller dex, faster class loading, no unused resources shipped.
+            // NOTE: uses proguard-android.txt (no optimizer). The -optimize variant
+            // rewrites bytecode aggressively and is a classic source of
+            // release-only startup crashes; shrinking still removes dead code.
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
+                getDefaultProguardFile("proguard-android.txt"),
                 "proguard-rules.pro",
             )
         }
@@ -43,16 +74,15 @@ android {
         compose = true
     }
 
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
-}
-
-composeCompiler {
-    // Kotlin 2.0 enables strong skipping by default; keep it explicit so it cannot regress.
-    enableStrongSkippingMode.set(true)
 }
 
 dependencies {
@@ -69,4 +99,6 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("androidx.profileinstaller:profileinstaller:1.3.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
 }

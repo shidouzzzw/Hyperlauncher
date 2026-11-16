@@ -33,26 +33,28 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.gafure.hyperlauncher.model.AppInfo
 import com.gafure.hyperlauncher.ui.components.AppDock
 import com.gafure.hyperlauncher.ui.components.AppDrawer
 import com.gafure.hyperlauncher.ui.components.AppGridPager
 import com.gafure.hyperlauncher.ui.components.ClockSection
-import com.gafure.hyperlauncher.ui.theme.ScrimDark
-import com.gafure.hyperlauncher.ui.theme.ScrimLight
 
 private val DrawerOpenThreshold = 72.dp
 private const val HomeBlurRadius = 26f
 
 /**
- * Home screen: wallpaper scrim, clock, paged grid of the user's chosen apps and the fixed dock.
- * Swiping up from empty space opens the [AppDrawer], which blurs this content via RenderEffect.
+ * Home screen: wallpaper scrim, clock, paged grid of the user's chosen apps and the fixed
+ * dock. Swiping up from empty space opens the [AppDrawer], which blurs this content via
+ * RenderEffect. All geometry (columns, icon size, labels, animation, scrim) comes from
+ * persisted settings.
  */
 @Composable
 fun HyperHomeScreen(viewModel: HomeViewModel = viewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val settings = uiState.settings
     var drawerOpen by rememberSaveable { mutableStateOf(false) }
+    var settingsOpen by rememberSaveable { mutableStateOf(false) }
     val homeBlur = remember { mutableFloatStateOf(0f) }
+    val iconSize = remember(settings.iconSize) { settings.iconSize.sizeDp.dp }
 
     val onOpenApp = remember(viewModel) { viewModel::openApp }
     val onRemoveFromHome = remember(viewModel) { viewModel::removeFromHome }
@@ -72,7 +74,7 @@ fun HyperHomeScreen(viewModel: HomeViewModel = viewModel()) {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        WallpaperScrim()
+        WallpaperScrim(scrimStrength = settings.scrimStrength)
 
         Column(
             modifier = Modifier
@@ -108,6 +110,10 @@ fun HyperHomeScreen(viewModel: HomeViewModel = viewModel()) {
             Spacer(modifier = Modifier.height(18.dp))
             AppGridPager(
                 apps = uiState.homeApps,
+                columns = settings.gridColumns,
+                iconSize = iconSize,
+                showLabels = settings.showLabels,
+                animationScale = settings.animationScale,
                 onAppClick = onOpenApp,
                 onAppRemove = onRemoveFromHome,
                 onAppInfo = onAppInfo,
@@ -126,26 +132,51 @@ fun HyperHomeScreen(viewModel: HomeViewModel = viewModel()) {
         if (drawerOpen) {
             AppDrawer(
                 apps = uiState.drawerApps,
+                drawerColumns = settings.drawerColumns,
+                iconSize = iconSize,
+                showLabels = settings.showLabels,
+                animationScale = settings.animationScale,
                 onClose = { drawerOpen = false },
                 onOpenApp = onOpenApp,
                 onAddToHome = onAddToHome,
                 onAppInfo = onAppInfo,
+                onOpenSettings = {
+                    drawerOpen = false
+                    settingsOpen = true
+                },
+            )
+        }
+
+        if (settingsOpen) {
+            SettingsSheet(
+                settings = settings,
+                onDismiss = { settingsOpen = false },
+                onGridColumnsChange = viewModel::setGridColumns,
+                onDrawerColumnsChange = viewModel::setDrawerColumns,
+                onIconSizeChange = viewModel::setIconSize,
+                onShowLabelsChange = viewModel::setShowLabels,
+                onThemeModeChange = viewModel::setThemeMode,
+                onAnimationScaleChange = viewModel::setAnimationScale,
+                onScrimStrengthChange = viewModel::setScrimStrength,
             )
         }
     }
 }
 
-/** Dark/light aware darkening gradient over the wallpaper, denser behind the clock. */
+/** Dark/light aware darkening gradient over the wallpaper, scaled by the scrim setting. */
 @Composable
-private fun WallpaperScrim(modifier: Modifier = Modifier) {
+private fun WallpaperScrim(
+    scrimStrength: Float,
+    modifier: Modifier = Modifier,
+) {
     val isDark = isSystemInDarkTheme()
-    val scrim = remember(isDark) { if (isDark) ScrimDark else ScrimLight }
-    val brush = remember(scrim) {
+    val brush = remember(isDark, scrimStrength) {
+        val peak = (if (isDark) 0.82f else 0.62f) * scrimStrength
         Brush.verticalGradient(
             colors = listOf(
-                Color.Black.copy(alpha = scrim.alpha),
-                Color.Black.copy(alpha = scrim.alpha * 0.62f),
-                Color.Black.copy(alpha = scrim.alpha * 0.85f),
+                Color.Black.copy(alpha = peak),
+                Color.Black.copy(alpha = peak * 0.62f),
+                Color.Black.copy(alpha = peak * 0.85f),
             ),
         )
     }

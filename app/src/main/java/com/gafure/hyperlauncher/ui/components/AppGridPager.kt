@@ -21,27 +21,33 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 
-private const val GRID_COLUMNS = 4
 private const val HOME_CELL_CONTENT_TYPE = "home-app"
-private val CELL_HEIGHT = 96.dp
 private val ROW_SPACING = 10.dp
 
 /**
- * Swipeable home pages. Each page is a four-column [LazyVerticalGrid] holding one screen of
- * user-selected apps; only the neighbouring page is composed (`beyondViewportPageCount = 1`).
+ * Swipeable home pages. Each page is a [columns]-wide [LazyVerticalGrid] holding one screen
+ * of user-selected apps; only the neighbouring page is composed
+ * (`beyondBoundsPageCount = 1`). Row height follows the icon-size setting so page maths
+ * always matches what is actually drawn.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AppGridPager(
     apps: ImmutableList<AppInfo>,
+    columns: Int,
+    iconSize: androidx.compose.ui.unit.Dp,
+    showLabels: Boolean,
+    animationScale: Float,
     onAppClick: (AppInfo) -> Unit,
     onAppRemove: (AppInfo) -> Unit,
     onAppInfo: (AppInfo) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val cellHeight = iconSize + if (showLabels) 30.dp else 14.dp
+
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val rows = (((maxHeight - 8.dp) / (CELL_HEIGHT + ROW_SPACING)).toInt()).coerceAtLeast(1)
-        val itemsPerPage = rows * GRID_COLUMNS
+        val rows = (((maxHeight - 8.dp) / (cellHeight + ROW_SPACING)).toInt()).coerceAtLeast(1)
+        val itemsPerPage = rows * columns.coerceAtLeast(1)
         val pages = remember(apps, itemsPerPage) {
             apps.chunked(itemsPerPage).map { page -> page.toImmutableList() }
         }
@@ -57,7 +63,7 @@ fun AppGridPager(
         ) { pageIndex ->
             val pageApps = pages.getOrNull(pageIndex) ?: persistentListOf()
             LazyVerticalGrid(
-                columns = GridCells.Fixed(GRID_COLUMNS),
+                columns = GridCells.Fixed(columns.coerceAtLeast(1)),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -74,7 +80,10 @@ fun AppGridPager(
                         onOpen = { onAppClick(app) },
                         onRemoveFromHome = { onAppRemove(app) },
                         onAppInfo = { onAppInfo(app) },
-                        modifier = Modifier.height(CELL_HEIGHT),
+                        iconSize = iconSize,
+                        showLabel = showLabels,
+                        animationScale = animationScale,
+                        modifier = Modifier.height(cellHeight),
                     )
                 }
             }
