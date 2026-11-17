@@ -63,8 +63,9 @@ never commit a keystore or passwords:
    (e.g. `RELEASE_KEYSTORE_BASE64`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`,
    `RELEASE_STORE_PASSWORD`).
 2. Wire them into a `release` signing config in `app/build.gradle.kts`.
-3. Tag the commit (`git tag vX.Y.Z`) — the workflow publishes GitHub Releases
-   **only** from `v*` tags, never from branch pushes.
+3. Releases are published by CI: a `v*` tag publishes that tag, and a push to
+   `main` refreshes the release for the `versionName` in `app/build.gradle.kts`
+   (currently `v1.2.0`).
 
 Switching between debug-signed and release-signed APKs with the same package
 name requires uninstalling first (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`).

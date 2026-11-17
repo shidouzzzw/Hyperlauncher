@@ -30,6 +30,12 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Resolve version
+        id: version
+        run: |
+          VERSION=$(grep -m1 'versionName = ' app/build.gradle.kts | cut -d'"' -f2)
+          echo "name=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
@@ -62,12 +68,13 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # Releases are published ONLY from v* tags, never from branch pushes.
+      # A v* tag publishes that tag; a push to main refreshes the release for the
+      # version declared in app/build.gradle.kts.
       - name: Publish release APKs
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', steps.version.outputs.name) }}
           target_commitish: ${{ github.sha }}
           files: |
             app/build/outputs/apk/release/app-release.apk
